@@ -1,10 +1,10 @@
 #!/bin/bash
 cp /usr/share/zoneinfo/Asia/Riyadh /etc/localtime
 #Database Details
-HOST='139.162.153.145';
-USER='safepointlx';
-PASS='safepointlx';
-DBNAME='safepointlx';
+HOST='49.12.80.157';
+USER='goldvip_smartpanel';
+PASS='goldvip_smartpanel';
+DBNAME='goldvip_smartpanel';
 
 install_require()
 {
